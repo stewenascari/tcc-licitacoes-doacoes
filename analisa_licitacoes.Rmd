@@ -1,0 +1,102 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r setup}
+library(dplyr)
+library(electionsBR)
+library(ggplot2)
+library(readr)
+library(stringr)
+```
+
+```{r}
+licitacao <- read_delim("dados/TCE-PB-SAGRES-Licitacao_Esfera_Municipal.txt", delim = "|", na = "NULL", quote = "") %>%
+  filter(!is.na(de_ugestora))
+
+propostas <- read_delim("dados/TCE-PB-SAGRES-Propostas_Licitacao_Esfera_Municipal.txt", delim = "|", na = "NULL")
+
+cd_ugestora <- read_delim("dados/TCE-PB-SAGRES-Participantes_Licitacao_Esfera_Municipal.txt", delim = "|", na = "NULL")
+
+doacoes <- read_delim("dados/receitas_candidatos_prestacao_contas_final_2016_PB.txt", delim = ";", na = "#NULO",
+                      locale = locale(decimal_mark = ",", encoding = "latin1"))
+
+municipios <- read_csv("dados/municipios_pb.csv")
+
+#votos_PB <- vote_mun_zone_local(2016, uf = "PB")
+prefeitos_pb_2016 <- votos_PB %>%
+  filter(DESC_SIT_CAND_TOT == "ELEITO", DESCRICAO_CARGO == "PREFEITO") %>%
+  select(ANO_ELEICAO, NOME_MUNICIPIO, NOME_CANDIDATO, SIGLA_PARTIDO, NUMERO_PARTIDO, COMPOSICAO_LEGENDA) %>%
+  distinct()
+
+```
+
+```{r}
+participacoes <- propostas %>%
+  group_by(cd_ugestora, de_ugestora, nu_cpfcnpj, no_proponente, nu_licitacao) %>%
+  summarise(n_propostas = n(),
+            n_vencedora = sum(de_situacaoproposta == "Vencedora"),
+            valor_recebido = sum(ifelse(de_situacaoproposta == "Vencedora", vl_ofertado, 0))) %>%
+  group_by(cd_ugestora, de_ugestora, nu_cpfcnpj, no_proponente) %>%
+  summarise(n_licitacoes = n(),
+            n_vencedora = sum(n_vencedora >= 1),
+            valor_recebido = sum(valor_recebido)) %>%
+  arrange(desc(valor_recebido))
+
+```
+
+
+```{r}
+ggplot(participacoes, aes("valor", valor_recebido)) +
+  geom_boxplot() +
+  scale_y_log10()
+
+# Filtrando outliers com valores recebidos acima de 1000000000
+participacoes <- filter(participacoes, valor_recebido < 1000000000)
+```
+
+```{r}
+ggplot(participacoes, aes("", valor_recebido)) +
+  geom_boxplot() +
+  scale_y_log10() +
+  coord_flip()
+
+participacoes %>%
+  arrange(desc(valor_recebido))
+```
+
+```{r}
+doacoes_totais <- doacoes %>%
+  group_by(`CPF/CNPJ do doador`, `Nome do doador`, `Nome candidato`, `Sigla  Partido`) %>%
+  summarise(n_doacoes = n(),
+            total_doado = sum(`Valor receita`))
+
+doacoes_totais
+```
+
+```{r}
+doacoes_gerais <- doacoes %>%
+  group_by(`Nome do doador (Receita Federal)`) %>%
+  summarise(n_doacoes =  n(),
+            total_doado = sum(`Valor receita`))
+
+participacoes_gerais <- participacoes %>%
+  group_by(no_proponente) %>%
+  summarise(n_licitacoes = sum(n_licitacoes),
+            n_vencedora = sum(n_vencedora),
+            total_recebido = sum(valor_recebido))
+
+doacoes_gerais %>%
+  inner_join(participacoes_gerais, by = c("Nome do doador (Receita Federal)" = "no_proponente")) %>%
+  arrange(desc(total_recebido))
+```
+
+```{r}
+participacoes <- participacoes %>%
+  mutate(cd_Municipio = str_sub(cd_ugestora, -3)) %>%
+  left_join(select(municipios, cd_Municipio, de_Municipio))
+
+participacoes
+
+```
