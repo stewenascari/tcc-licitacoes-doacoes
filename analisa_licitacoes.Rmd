@@ -1,11 +1,12 @@
 ---
-title: "R Notebook"
+title: "Tcc: relação entre empresas que fazem licitações e doeações em campanha eleitoral"
 output: html_notebook
 ---
 
 ```{r setup}
 library(dplyr)
 library(electionsBR)
+library(lubridate)
 library(ggplot2)
 library(readr)
 library(stringr)
@@ -22,18 +23,26 @@ cd_ugestora <- read_delim("dados/TCE-PB-SAGRES-Participantes_Licitacao_Esfera_Mu
 doacoes <- read_delim("dados/receitas_candidatos_prestacao_contas_final_2016_PB.txt", delim = ";", na = "#NULO",
                       locale = locale(decimal_mark = ",", encoding = "latin1"))
 
-municipios <- read_csv("dados/municipios_pb.csv")
+municipios <- read_csv("dados/municipios_pb.csv", locale = locale(encoding = "latin1"))
 
-#votos_PB <- vote_mun_zone_local(2016, uf = "PB")
-prefeitos_pb_2016 <- votos_PB %>%
-  filter(DESC_SIT_CAND_TOT == "ELEITO", DESCRICAO_CARGO == "PREFEITO") %>%
-  select(ANO_ELEICAO, NOME_MUNICIPIO, NOME_CANDIDATO, SIGLA_PARTIDO, NUMERO_PARTIDO, COMPOSICAO_LEGENDA) %>%
-  distinct()
+prefeitos_pb_2016 <- read_csv("dados/prefeitos_eleitos_pb_2016.csv")
+
+#votos_PB <- vote_mun_zone_local(2016, uf = "PB", export = TRUE)
+#prefeitos_pb_2016 <- votos_PB %>%
+#  filter(DESC_SIT_CAND_TOT == "ELEITO", DESCRICAO_CARGO == "PREFEITO") %>%
+#  select(ANO_ELEICAO, NOME_MUNICIPIO, NOME_CANDIDATO, SIGLA_PARTIDO, NUMERO_PARTIDO, COMPOSICAO_LEGENDA) %>%
+#  distinct()
+#write_csv(prefeitos_pb_2016, "dados/prefeitos_eleitos_pb_2016.csv")
 
 ```
 
 ```{r}
+data_inicial <- dmy("01/01/2017") 
+
 participacoes <- propostas %>%
+  mutate(cd_ugestora = as.character(cd_ugestora)) %>%
+  left_join(licitacao, by = c("cd_ugestora", "de_ugestora", "nu_licitacao" = "nu_Licitacao")) %>%
+  filter(dmy(dt_Homologacao) >= data_inicial) %>%
   group_by(cd_ugestora, de_ugestora, nu_cpfcnpj, no_proponente, nu_licitacao) %>%
   summarise(n_propostas = n(),
             n_vencedora = sum(de_situacaoproposta == "Vencedora"),
@@ -68,7 +77,7 @@ participacoes %>%
 
 ```{r}
 doacoes_totais <- doacoes %>%
-  group_by(`CPF/CNPJ do doador`, `Nome do doador`, `Nome candidato`, `Sigla  Partido`) %>%
+  group_by(`CPF/CNPJ do doador`, `Nome do doador`, `Nome da UE`, `Nome candidato`, `Sigla  Partido`) %>%
   summarise(n_doacoes = n(),
             total_doado = sum(`Valor receita`))
 
@@ -93,10 +102,41 @@ doacoes_gerais %>%
 ```
 
 ```{r}
-participacoes <- participacoes %>%
+participacoes_municipio <- participacoes %>%
   mutate(cd_Municipio = str_sub(cd_ugestora, -3)) %>%
-  left_join(select(municipios, cd_Municipio, de_Municipio))
+  left_join(select(municipios, cd_Municipio, de_Municipio)) %>%
+  mutate(de_Municipio = toupper(de_Municipio)) %>%
+  group_by(nu_cpfcnpj, nome_licitante = no_proponente, municipio = de_Municipio) %>%
+  summarise(n_licitacoes = sum(n_licitacoes),
+            n_vencedora = sum(n_vencedora),
+            valor_recebido = sum(valor_recebido, na.rm = TRUE)) %>%
+  left_join(select(prefeitos_pb_2016, prefeito = NOME_CANDIDATO, municipio = NOME_MUNICIPIO))
+participacoes_municipio
 
-participacoes
+doacoes_municipio <- doacoes %>%
+  group_by(nome_doador = `Nome do doador (Receita Federal)`,
+           nome_candidato = `Nome candidato`,
+           municipio = `Nome da UE`) %>%
+  summarise(n_doacoes =  n(),
+            total_doado = sum(`Valor receita`, na.rm = TRUE))
+doacoes_municipio
+
+doacoes_participacoes_prefeito <- doacoes_municipio %>%
+  inner_join(participacoes_municipio, by = c("nome_doador" = "nome_licitante", "nome_candidato" = "prefeito", "municipio"))
+
+doacoes_participacoes_prefeito %>%
+  arrange(desc(total_doado))
+
 
 ```
+
+```{r}
+licitante <- "PAULO DALIA TEIXEIRA"
+
+propostas %>%
+  filter(no_proponente== licitante) %>% 
+  mutate(cd_ugestora = as.character(cd_ugestora)) %>%
+  left_join(licitacao, by = c("cd_ugestora", "de_ugestora", "nu_licitacao" = "nu_Licitacao"))
+
+```
+
