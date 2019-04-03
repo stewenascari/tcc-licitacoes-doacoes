@@ -18,9 +18,12 @@ licitacao <- read_delim("dados/TCE-PB-SAGRES-Licitacao_Esfera_Municipal.txt", de
 
 propostas <- read_delim("dados/TCE-PB-SAGRES-Propostas_Licitacao_Esfera_Municipal.txt", delim = "|", na = "NULL")
 
-cd_ugestora <- read_delim("dados/TCE-PB-SAGRES-Participantes_Licitacao_Esfera_Municipal.txt", delim = "|", na = "NULL")
+gestoras <- read_delim("dados/TCE-PB-SAGRES-Participantes_Licitacao_Esfera_Municipal.txt", delim = "|", na = "NULL")
 
-doacoes <- read_delim("dados/receitas_candidatos_prestacao_contas_final_2016_PB.txt", delim = ";", na = "#NULO",
+doacoes2012 <- read_delim("dados/receitas_candidatos_2012_PB.txt", delim = ";", na= "#NULO", 
+                      locale = locale(decimal_mark = ",", encoding = "latin1"))
+
+doacoes2016 <- read_delim("dados/receitas_candidatos_prestacao_contas_final_2016_PB.txt", delim = ";", na = "#NULO",
                       locale = locale(decimal_mark = ",", encoding = "latin1"))
 
 municipios <- read_csv("dados/municipios_pb.csv", locale = locale(encoding = "latin1"))
@@ -76,7 +79,7 @@ participacoes %>%
 ```
 
 ```{r}
-doacoes_totais <- doacoes %>%
+doacoes_totais <- doacoes2016 %>%
   group_by(`CPF/CNPJ do doador`, `Nome do doador`, `Nome da UE`, `Nome candidato`, `Sigla  Partido`) %>%
   summarise(n_doacoes = n(),
             total_doado = sum(`Valor receita`))
@@ -85,7 +88,7 @@ doacoes_totais
 ```
 
 ```{r}
-doacoes_gerais <- doacoes %>%
+doacoes_gerais <- doacoes2016 %>%
   group_by(`Nome do doador (Receita Federal)`) %>%
   summarise(n_doacoes =  n(),
             total_doado = sum(`Valor receita`))
@@ -113,7 +116,7 @@ participacoes_municipio <- participacoes %>%
   left_join(select(prefeitos_pb_2016, prefeito = NOME_CANDIDATO, municipio = NOME_MUNICIPIO))
 participacoes_municipio
 
-doacoes_municipio <- doacoes %>%
+doacoes_municipio <- doacoes2016 %>%
   group_by(nome_doador = `Nome do doador (Receita Federal)`,
            nome_candidato = `Nome candidato`,
            municipio = `Nome da UE`) %>%
@@ -139,4 +142,8 @@ propostas %>%
   left_join(licitacao, by = c("cd_ugestora", "de_ugestora", "nu_licitacao" = "nu_Licitacao"))
 
 ```
+# Candidatos do ano de 2012 da PB
 
+## Quais são os maiores participantes
+## Quais são os maiores vencedores
+## Quais são os maiores vencedores
