@@ -20,9 +20,6 @@ propostas <- read_delim("dados/TCE-PB-SAGRES-Propostas_Licitacao_Esfera_Municipa
 
 gestoras <- read_delim("dados/TCE-PB-SAGRES-Participantes_Licitacao_Esfera_Municipal.txt", delim = "|", na = "NULL")
 
-doacoes_2012 <- read_delim("dados/receitas_candidatos_2012_PB.txt", delim = ";", na= "#NULO#", col_types =   cols(.default = "c"),
-                      locale = locale(decimal_mark = ",", encoding = "latin1"))
-
 doacoes_2016 <- read_delim("dados/receitas_candidatos_prestacao_contas_final_2016_PB.txt", delim = ";", na = "#NULO",
                       locale = locale(decimal_mark = ",", encoding = "latin1"))
 municipios <- read_csv("dados/municipios_pb.csv", locale = locale(encoding = "latin1"))
@@ -78,15 +75,6 @@ participacoes_de_licitacoes %>%
 ```
 
 ```{r}
-doacoes_totais_2012 <- doacoes_2012 %>%
-  group_by( `CPF/CNPJ do doador`, `Nome do doador`, Municipio, `Nome candidato`, `Sigla  Partido`) %>%
-  summarise(n_doacoes = n(),
-            total_doado = sum( as.numeric(`Valor receita`)))
-
-doacoes_totais_2012
-
-
-
 doacoes_totais_2016 <- doacoes_2016 %>%
   group_by(`CPF/CNPJ do doador`, `Nome do doador`, `Nome da UE`, `Nome candidato`, `Sigla  Partido`) %>%
   summarise(n_doacoes = n(),
@@ -96,11 +84,6 @@ doacoes_totais_2016
 ```
 
 ```{r}
-doacoes_gerais_2012 <- doacoes_2012 %>%
-  group_by(`Nome do doador (Receita Federal)`) %>%
-  summarise(n_doacoes =  n(),
-            total_doado = sum(as.numeric(`Valor receita`)))
-
 doacoes_gerais_2016 <- doacoes_2016 %>%
   group_by(`Nome do doador (Receita Federal)`) %>%
   summarise(n_doacoes =  n(),
@@ -111,10 +94,6 @@ participacoes_gerais_de_licitacoes <- participacoes_de_licitacoes %>%
   summarise(n_licitacoes = sum(n_licitacoes),
             n_vencedora = sum(n_vencedora),
             total_recebido = sum(valor_recebido))
-
-doacoes_gerais_2012 %>%
-  inner_join(participacoes_gerais_de_licitacoes, by = c("Nome do doador (Receita Federal)" = "no_proponente")) %>%
-  arrange(desc(total_recebido))
 
 doacoes_gerais_2016 %>%
   inner_join(participacoes_gerais_de_licitacoes, by = c("Nome do doador (Receita Federal)" = "no_proponente")) %>%
@@ -133,8 +112,8 @@ participacoes_municipio_licitacoes <- participacoes_de_licitacoes %>%
   mutate(de_Municipio = toupper(de_Municipio)) %>%
   group_by(nu_cpfcnpj, nome_licitante = no_proponente, municipio = de_Municipio) %>%
   summarise(n_licitacoes = sum(n_licitacoes),
-            n_vencedora = sum(n_vencedora),
-            valor_recebido = sum(valor_recebido, na.rm = TRUE)) %>%
+            n_licitacao_vencedora = sum(n_vencedora),
+            valor_recebido_licitacao = sum(valor_recebido, na.rm = TRUE)) %>%
   left_join(select(prefeitos_pb_2016, prefeito = NOME_CANDIDATO, municipio = NOME_MUNICIPIO))
 
 participacoes_municipio_licitacoes
@@ -150,6 +129,8 @@ doacoes_municipio_2016
 doacoes_participacoes_prefeito <- doacoes_municipio_2016 %>%
   inner_join(participacoes_municipio_licitacoes, by = c("nome_doador" = "nome_licitante", "nome_candidato" = "prefeito", "municipio"))
 
+doacoes_participacoes_prefeito
+
 doacoes_participacoes_prefeito %>%
   arrange(desc(total_doado))
 doacoes_participacoes_prefeito %>%
@@ -157,39 +138,176 @@ doacoes_participacoes_prefeito %>%
 ```
 
 ```{r}
-# media dos valores ganhado em doações
-doacoes_media_ganho <- doacoes_participacoes_prefeito %>%
-  group_by( nome_candidato, municipio)%>%
-  summarise(media_doacao= mean(total_doado))
+# doacões e licitações no mesmo municipio
 
-doacoes_media_ganho%>%
+d_l_municipios <- doacoes_participacoes_prefeito %>%
+  group_by(nome_doador, municipio) %>%
+  summarise(total_doado= sum(total_doado),
+            valor_recebido_licitacao = sum((valor_recebido_licitacao)))
+
+
+d_l_municipios
+
+# Media das doações feitas para prefeito
+
+media_doacoes_prefeito <- doacoes_participacoes_prefeito %>%
+  group_by(nome_candidato) %>%
+  summarise(media_doacao= mean(total_doado)) %>%
   arrange(desc(media_doacao))
+
+media_doacoes_prefeito
+
+# Media das licitações recebidas por municipios
+
+media_licitacoes_municipio <- doacoes_participacoes_prefeito %>%
+  group_by(municipio)%>%
+  summarise(media_licitacao= mean(valor_recebido_licitacao)) %>%
+  arrange(desc(media_licitacao))
+
+media_licitacoes_municipio
+
+# Quantas doações foram feitas pela empresa e quantas licitações essa empresa ganhou?
+d_l_empresa <- doacoes_participacoes_prefeito %>%
+  group_by(nome_doador)%>%
+  summarise(n_doacoes = sum(n_doacoes),
+            n_licitacao_vencedora = sum(n_licitacao_vencedora)) %>%
+  arrange(desc(n_licitacao_vencedora))
+
+d_l_empresa
+
+```
+
+```{r}
+# media dos valores ganhado em doações
+#doacoes_media_ganho <- doacoes_participacoes_prefeito %>%
+ # group_by( nome_candidato, municipio)%>%
+  #summarise(media_doacao= mean(total_doado)) %>%
+  #arrange(desc(media_doacao))
+
+#doacoes_media_ganho
 
 
 
 
 # média dos valores ganhado em licitações das prefeituras
 
-licitacoes_media_ganho <- doacoes_participacoes_prefeito %>%
-  filter(n_vencedora > 0)%>%
-  group_by(nome_doador, municipio, n_licitacoes, valor_recebido) %>%
-  summarise(media_licitacao= mean(valor_recebido))
+#licitacoes_media_ganho <- doacoes_participacoes_prefeito %>%
+ # filter(n_vencedora > 0)%>%
+  #group_by(nome_doador, municipio, n_licitacoes, valor_recebido) %>%
+  #summarise(media_licitacao= mean(valor_recebido))
 
-licitacoes_media_ganho %>%
-  arrange(desc(media_licitacao))
-
+#licitacoes_media_ganho %>%
+ # arrange(desc(media_licitacao))
 
 ```
 
 
 
-```{r}
-licitante <- "PAULO DALIA TEIXEIRA"
+# Ligação indireta
 
-propostas %>%
-  filter(no_proponente== licitante) %>% 
-  mutate(cd_ugestora = as.character(cd_ugestora)) %>%
-  left_join(licitacao, by = c("cd_ugestora", "de_ugestora", "nu_licitacao" = "nu_Licitacao"))
+## Primeiro tipo de ligação
+
+```{r}
+participacoes_municipio_licitacoes_indireta <- participacoes_de_licitacoes %>%
+  mutate(cd_Municipio = str_sub(cd_ugestora, -3)) %>%
+  left_join(select(municipios, cd_Municipio, de_Municipio)) %>%
+  mutate(de_Municipio = toupper(de_Municipio)) %>%
+  group_by(nu_cpfcnpj, nome_licitante = no_proponente, municipio = de_Municipio) %>%
+  summarise(n_licitacoes = sum(n_licitacoes),
+            n_vencedora = sum(n_vencedora),
+            valor_recebido = sum(valor_recebido, na.rm = TRUE)) %>%
+  left_join(select(prefeitos_pb_2016, prefeito = NOME_CANDIDATO, partido_sigla = SIGLA_PARTIDO, municipio = NOME_MUNICIPIO))
+
+participacoes_municipio_licitacoes_indireta
+
+doacoes_municipio_2016_indireta <- doacoes_2016 %>%
+  group_by(nome_doador = `Nome do doador (Receita Federal)`,
+           nome_candidato = `Nome candidato`,
+           partido_sigla_doacao = `Sigla  Partido`,
+           municipio = `Nome da UE`) %>%
+  summarise(n_doacoes =  n(),
+            total_doado = sum(`Valor receita`, na.rm = TRUE))
+
+doacoes_municipio_2016_indireta%>%
+  arrange(desc(total_doado))
+
+doacoes_participacoes_prefeito_indireta <- doacoes_municipio_2016_indireta%>%
+  inner_join(participacoes_municipio_licitacoes_indireta, by = c("nome_doador" = "nome_licitante", 
+                                                                 "partido_sigla_doacao" = "partido_sigla", "municipio"))
+
+doacoes_participacoes_prefeito_indireta
+
+doacoes_participacoes_prefeito_indireta_organizando <- doacoes_participacoes_prefeito_indireta %>%
+  filter(nome_candidato != prefeito) %>%
+  group_by(nome_doador, municipio, "nome_candidato_prefeito"= nome_candidato, "prefeito_eleito" = prefeito, partido_sigla_doacao) %>%
+  summarise(total_doado = sum(total_doado),
+            n_doacoes = sum(n_doacoes),
+            valor_recebido = sum(valor_recebido),
+            n_licitacoes = sum(n_licitacoes),
+            n_vencedora = sum(n_vencedora))
+  
+
+doacoes_participacoes_prefeito_indireta_organizando
+
+sigla_partido_prefeito<- doacoes_participacoes_prefeito_indireta_organizando %>%
+  group_by("sigla_dos_partidos"= partido_sigla_doacao, n_doacoes, total_doado, valor_recebido) %>%
+  summarise(media_doacao= mean(total_doado),
+            media_licitacao = mean(valor_recebido)) %>%
+  arrange(desc(media_doacao))
+
+sigla_partido_prefeito
+
+ggplot(sigla_partido_prefeito, aes(x= sigla_dos_partidos, y= total_doado))+
+  geom_violin()
+
+```
+
+```{r}
+# doacões e licitações no mesmo municipio 
+
+d_l_municipios_indiretas <- doacoes_participacoes_prefeito_indireta_organizando %>%
+  group_by(nome_doador, municipio) %>%
+  summarise(total_doado= sum(total_doado),
+            valor_recebido = sum((valor_recebido)))
+
+
+d_l_municipios_indiretas
+
+# Media das doações feitas para prefeito
+
+media_doacoes_prefeito_indireta <- doacoes_participacoes_prefeito_indireta_organizando %>%
+  group_by(nome_candidato_prefeito) %>%
+  summarise(media_doacao= mean(total_doado)) %>%
+  arrange(desc(media_doacao))
+
+media_doacoes_prefeito_indireta
+
+# Media das licitações recebidas por municipios
+
+media_licitacoes_municipio_indireta <- doacoes_participacoes_prefeito_indireta_organizando %>%
+  group_by(municipio)%>%
+  summarise(media_licitacao= mean(valor_recebido)) %>%
+  arrange(desc(media_licitacao))
+
+media_licitacoes_municipio_indireta
+
+# Quantas doações foram feitas pela empresa e quantas licitações essa empresa ganhou?
+d_l_empresa_indireta <- doacoes_participacoes_prefeito_indireta_organizando %>%
+  group_by(nome_doador)%>%
+  summarise(n_doacoes = sum(n_doacoes),
+            n_licitacoes = sum(n_licitacoes)) %>%
+  arrange(desc(n_licitacoes))
+
+d_l_empresa_indireta
+```
+
+```{r}
+#licitante <- "PAULO DALIA TEIXEIRA"
+
+#propostas %>%
+ # filter(no_proponente== licitante) %>% 
+  #mutate(cd_ugestora = as.character(cd_ugestora)) %>%
+  #left_join(licitacao, by = c("cd_ugestora", "de_ugestora", "nu_licitacao" = "nu_Licitacao"))
 
 ```
 
